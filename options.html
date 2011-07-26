@@ -1,0 +1,109 @@
+<!doctype html>
+
+<!--
+Copyright 2011 Google Inc. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<head>
+  <title>OAuth 2.0 Options</title>
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+	<script src="oauth2/oauth2.js"></script>
+	<script src="githubapi.js"></script>
+	<link href="styles.css" media="screen" rel="stylesheet" type="text/css" />
+	<style>
+		.authorized {
+			background-color: green;
+			color: white;
+		}
+		
+		h1 {
+			font-size: 16px;
+			color: #CCC;
+		}
+		
+		.container {
+			width: 600px;
+		}
+		
+		.container p {
+			padding-bottom: 9px;
+			padding-top: 7px;
+		}
+		
+		.notice {
+			color: red;
+			font-style: oblique;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="header">
+	<img src="assets/github-logo.png" />
+	</div>
+	
+	<div class="container">
+	  <h1>OAuth 2.0 Permissions</h1>
+		<p>Github Issues Submitter allows you to capture the HTML source of the current page, and submit it along with a github issue. To get started, authorize the extension.</p>
+		<p><span class="notice">Notice!</span> If you opt to include the HTML source and/or screenshot in your issue, the files will be stored on Amazon's S3 filesystem. This means that your source and screenshot will be accessible to anyone. However, filenames are comprised of large, random keys, which provides a relatively high amount of security.</p>
+		
+	  <button id="github" onclick="javascript:authorize('github')">
+	    Grant Github Access
+	  </button>
+		<p>If you'd like to de-authorize the extension you can do so below.</p>
+	  <button id="clear" onclick="javascript:clearAuthorized()">Clear Tokens</button>
+
+	  <span id="status"></span>
+	</div>
+<script>
+
+  var github = new OAuth2('github', {
+    client_id: '2211e38039c1de31d857',
+    client_secret: 'fe54617de4a64adea4f2cf0294f3cd06aa92876d',
+  });
+
+  function authorize(providerName) {
+    var provider = window[providerName];
+    provider.authorize(checkAuthorized);
+  }
+
+  function clearAuthorized() {
+    console.log('clear');
+    ['github'].forEach(function(providerName) {
+      var provider = window[providerName];
+      provider.clearAccessToken();
+    });
+    checkAuthorized();
+  }
+
+  function checkAuthorized() {
+    console.log('checkAuthorized');
+    var provider = window["github"];
+    var button = document.querySelector('#github');
+    if (provider.get('accessToken')) {
+      button.classList.add('authorized');
+			g = new GitHub(provider.getAccessToken());
+			$.when(g.fetchRepos()).done(function(){
+				window.localStorage.setItem("repoMap", JSON.stringify(g.repos))
+			}
+			);
+    } else {
+      button.classList.remove('authorized');
+    }
+  }
+  checkAuthorized();
+</script>
+
+</body>

@@ -1,0 +1,258 @@
+<!-- Copyright Mike Anderson 2011 -->
+
+<html>
+<head>
+
+<link href="styles.css" media="screen" rel="stylesheet" type="text/css" />
+
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+<script src="oauth2/oauth2.js"></script>
+<script src="githubapi.js"></script>
+<script src="scripts/utilities.js"></script>
+
+<script>
+
+jQuery.ajaxSetup({ 
+  'beforeSend': function(xhr) {
+    xhr.setRequestHeader("Accept", "application/json")  
+  }
+})
+
+var github = new OAuth2('github', {
+  client_id: '2211e38039c1de31d857',
+  client_secret: 'fe54617de4a64adea4f2cf0294f3cd06aa92876d',
+});
+
+gh = new GitHub(github.getAccessToken());
+
+checkAuthorized = function() {
+  console.log('checkAuthorized');
+  var provider = window["github"];
+  if (provider.get('accessToken')) {
+
+  } else {
+		// Not authorized
+		console.log("not authorized");
+		$('.status').show();
+		$('.status').html('Please grant Github permissions');
+		$('.status').addClass('error');
+		setTimeout(function(){
+		    $('.status').fadeOut('slow', function(){ $('.status').removeClass('error')});
+		},5000)
+		chrome.tabs.create( {url: chrome.extension.getURL("options.html")} );
+		
+  }
+}
+
+checkAuthorized();
+
+buildRepoDropDown = function(){
+	dropdown = $(".repo-dropdown");
+	repoMap = JSON.parse(localStorage["repoMap"]);
+	
+	// Build the 
+	for (var key in repoMap) {
+	  if (repoMap.hasOwnProperty(key)) {
+			repo_name = key
+			repo_url = repoMap[key]["url"]
+			
+		 	var opt = $("<option>")
+			opt.val(repo_url)
+			opt.html(repo_name)
+			
+			// TODO: set as selected if it was used last
+			if(localStorage["defaultRepo"] == repo_url)
+				opt.attr("selected", "true")
+				
+			dropdown.append(opt)
+	  }
+	}
+}
+
+buidAssignedDropDown = function(){
+	repoKey = $('.repo-dropdown option:selected').html()
+	
+	dropdown = $(".assigned-dropdown");
+	
+	// Reset the dropdown
+	dropdown.html('')
+	var blank = $("<option>")
+	blank.val("null")
+	blank.html("Nobody assigned")
+	dropdown.append(blank)	
+	
+	repoMap = JSON.parse(localStorage["repoMap"]);
+	
+	contributorList = repoMap[repoKey]["contributors"]
+	
+	// Build the dropdown
+	$.map(contributorList, function(contributor){
+		name = contributor.login
+		
+	 	var opt = $("<option>")
+		opt.val(name)
+		opt.html(name)
+			
+		dropdown.append(opt)
+	})
+}
+
+
+
+
+submitIssue = function(){
+	
+	s3_proxy_url = "http://afternoon-earth-714.heroku.com/s3_files"
+	
+	options = {}
+	
+	title = $(".title").val()
+  body = $(".body").val()
+	assigned = $(".assigned-dropdown").val()
+	repoUrl = $(".repo-dropdown").val()
+	
+	options["repo"] = repoUrl;
+	options["title"] = title;
+	options["body"] = body;
+	
+	if(assigned != "null")
+		options["assignee"] = assigned;
+	
+	// TODO: Check if title or body is blank and throw an error
+	bodyAppend = []
+	
+	if($('#pagesource').attr('checked'))
+	{
+		
+		psFilename = randomUUID() + ".html";
+		fileUrl = getAwsPath(psFilename);
+	  bodyAppend.push("View [page source](" + fileUrl + ")");
+	
+		chrome.tabs.getSelected(null,function(tab){
+		  chrome.tabs.sendRequest(tab.id,{greeting:"get_page_source"}, function(response){				
+		    $.ajax({
+					url: s3_proxy_url,
+					type: 'post',
+					dataType: 'json',
+					data: {s3_file: {file_contents: response.source, filename: psFilename}},
+					success: function(data){console.log("get complete: " + data)},
+			    error: function(){}
+				});
+			});
+		});
+	} 
+	
+	if($('#pagescreenshot').attr('checked'))
+	{
+		ssFilename = randomUUID() + ".jpeg";
+		fileUrl = getAwsPath(ssFilename);
+		bodyAppend.push("View [screenshot](" + fileUrl + ")");
+
+		chrome.tabs.captureVisibleTab(null, null, function(dataUri){
+			$.ajax({
+				url: s3_proxy_url,
+				type: 'post',
+				dataType: 'json',
+				data: {s3_file: {file_contents: dataUri, filename: ssFilename}},
+				success: function(data){console.log("get complete: " + data)},
+		    error: function(){}
+			});
+		});	
+	}
+	
+	chrome.tabs.getSelected(null,function(tab){
+		bodyAppend.push("Page url: " + tab.url);
+			
+		options["body"] += "\n\n" 
+		options["body"] += bodyAppend.join("\n")
+		// We submit the issue before we check that the files have uploaded.
+		gh.newIssue(options)
+	});
+}
+
+function getAwsPath(filename){
+	path = "http://gis-e6xaz.s3.amazonaws.com/" + filename;
+	return path;
+}
+
+resetForm = function(){
+	$(".title").val("")
+	$(".body").val("")
+	$(".assigned-dropdown").val("null")
+}
+
+$(document).ready(function(){ 
+
+	buildRepoDropDown();
+	buidAssignedDropDown();
+	
+	$(".submit").click(function(){
+		submitIssue();
+	})
+	
+	$(".repo-dropdown").change(function(){
+		selectedRepo = $(this).val();
+		localStorage["defaultRepo"] = selectedRepo;
+		
+		// Rebuild the assignee list
+		buidAssignedDropDown();
+	})
+	
+	$('.status').ajaxSend(function() {
+		$(this).show();
+	  $(this).html('Submitting issue...');
+		$(this).addClass('spinner');
+	});
+	
+	$('.status').ajaxSuccess(function(){
+		$(this).html('Issue number <a target="_blank" href="' + gh.issueUrl + '">' + gh.issueNumber + '</a> was created.');
+		$(this).removeClass('spinner');
+		setTimeout(function(){
+		    $('.status').fadeOut('slow')
+		},5000)
+		resetForm();
+	})
+	
+	$('.status').ajaxError(function(){
+		$(this).html('There was an error, please try again.');
+		$(this).removeClass('spinner');
+		$(this).addClass('error')
+		setTimeout(function(){
+		    $('.status').fadeOut('slow')
+		},5000)
+	})
+	
+})  
+
+</script>
+</head>
+
+<body>
+<div class="header">
+<img src="assets/github-logo.png" />
+</div>
+
+<div class="tools">	
+	<h1>Create a new issue</h1>
+	<select class="repo-dropdown"></select>	
+</div>
+
+<div class="comment-wrapper">
+	<div class="comment-inner">
+	<form id="form">
+	  <label>Title</label><br><input type="text" class="title"/><br>
+		<div class="infobar">
+			Assign to: <select class="assigned-dropdown"></select>	
+		</div>
+	  
+		<textarea class="body" rows="10"></textarea>
+		<input type="checkbox" id="pagesource" name="source" value="true" checked="true" />Include page source<br>
+		<input type="checkbox" id="pagescreenshot" name="screenshot" value="true" checked="true"/>Include screenshot<br>
+	</form>
+	</div>
+</div>
+<a href="#" class="submit"><span>Submit</span></a>
+
+<span class="status"></span>
+</body>
+</html>

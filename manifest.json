@@ -1,0 +1,29 @@
+{
+  "name": "Github Issue Submitter",
+	"icons": { "16": "assets/icon.png",
+	           "48": "assets/icon48.png",
+	          "128": "assets/icon128.png" },
+  "version": "1.0",
+  "description": "Submit issues to Github. Include HTML source from the current tab.",
+  "options_page": "options.html",
+  "background_page": "background.html",
+  "browser_action": {
+    "default_icon": "assets/icon.png",
+    "popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/robots.txt*"],
+      "js": ["oauth2/oauth2_inject.js"],
+      "run_at": "document_start"
+    },
+		{
+			"matches": ["http://*/*", "https://*/*"],
+			"js": ["myscript.js"],
+			"run_at": "document_start"
+		}
+  ],
+  "permissions": [
+    "tabs", "http://*/*",  "https://*/*", "https://github.com/", "https://api.github.com/"
+  ]
+}
