@@ -12,10 +12,27 @@ body {
 	background: url('assets/background-v2.png') repeat-x top left white;
 }
 
+.header {
+  width: 100%;
+  position: relative;
+}
+
 .header img {
   position: relative;
   left: -4px;
   height: 60px;
+}
+
+.header .refresh{
+  right: 0px;  
+  position: absolute;
+  bottom: 5px;
+  color: #999;
+  text-decoration: none;
+}
+
+.header .refresh:hover {
+  color: #666;
 }
 
 .tools h1 {
@@ -43,7 +60,7 @@ body {
 	overflow: auto;
 }
 
-.submit {
+.button {
 	float: right;
 	height: 24px;
 	padding: 0;
@@ -66,7 +83,7 @@ body {
 	margin-bottom: 15px;
 }
 
-.submit:hover, .submit:hover {
+.button:hover {
 	color: white;
 	text-shadow: -1px -1px 0 rgba(0, 0, 0, 0.3);
 	border-bottom-color: #0770A0;
@@ -75,7 +92,7 @@ body {
 	text-decoration: none;
 }
 
-.submit span {
+.button span {
 	display: block;
 	height: 24px;
 	padding: 0 13px;

@@ -3,8 +3,8 @@
 	"icons": { "16": "assets/icon.png",
 	           "48": "assets/icon48.png",
 	          "128": "assets/icon128.png" },
-  "version": "1.0",
-  "description": "Submit issues to Github. Include HTML source from the current tab.",
+  "version": "1.1",
+  "description": "Submit issues to Github. Include HTML source and screenshots from the current tab.",
   "options_page": "options.html",
   "background_page": "background.html",
   "browser_action": {
@@ -17,13 +17,14 @@
       "js": ["oauth2/oauth2_inject.js"],
       "run_at": "document_start"
     },
-		{
-			"matches": ["http://*/*", "https://*/*"],
-			"js": ["myscript.js"],
-			"run_at": "document_start"
-		}
+    {
+      "matches": ["http://*/*", "https://*/*", "ftp://*/*", "file://*/*"],
+      "js": ["page.js"],
+      "css": ["style.css"],
+      "run_at": "document_end"
+    }
   ],
   "permissions": [
-    "tabs", "http://*/*",  "https://*/*", "https://github.com/", "https://api.github.com/"
+    "tabs", "notifications", "http://*/*",  "https://*/*", "https://github.com/", "https://api.github.com/"
   ]
 }

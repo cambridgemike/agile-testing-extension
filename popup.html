@@ -15,6 +15,8 @@
 jQuery.ajaxSetup({ 
   'beforeSend': function(xhr) {
     xhr.setRequestHeader("Accept", "application/json")  
+		console.log("Outgoing ajax request");
+		console.log(xhr);
   }
 })
 
@@ -44,7 +46,6 @@ checkAuthorized = function() {
   }
 }
 
-checkAuthorized();
 
 buildRepoDropDown = function(){
 	dropdown = $(".repo-dropdown");
@@ -97,14 +98,15 @@ buidAssignedDropDown = function(){
 	})
 }
 
+//dataUrl = canvas.toDataURL('image/png');
 
 
-
-submitIssue = function(){
+submitIssue = function(crop){
 	
 	s3_proxy_url = "http://afternoon-earth-714.heroku.com/s3_files"
 	
 	options = {}
+	crop = crop || false
 	
 	title = $(".title").val()
   body = $(".body").val()
@@ -118,56 +120,110 @@ submitIssue = function(){
 	if(assigned != "null")
 		options["assignee"] = assigned;
 	
-	// TODO: Check if title or body is blank and throw an error
+
 	bodyAppend = []
+	ssFilename = ""
+	psFilename = ""
+	
+	
+	// Empty defer object
+	submitDefer = $.when();
+	
 	
 	if($('#pagesource').attr('checked'))
 	{
-		
 		psFilename = randomUUID() + ".html";
-		fileUrl = getAwsPath(psFilename);
-	  bodyAppend.push("View [page source](" + fileUrl + ")");
+	  bodyAppend.push("View [page source](" + getAwsPath(psFilename) + ")");
 	
-		chrome.tabs.getSelected(null,function(tab){
-		  chrome.tabs.sendRequest(tab.id,{greeting:"get_page_source"}, function(response){				
-		    $.ajax({
-					url: s3_proxy_url,
-					type: 'post',
-					dataType: 'json',
-					data: {s3_file: {file_contents: response.source, filename: psFilename}},
-					success: function(data){console.log("get complete: " + data)},
-			    error: function(){}
-				});
-			});
+		// Get the current URL
+		submitDefer = submitDefer.pipe(fetchUrl).pipe(function(url){
+			bodyAppend.push("Url: " + url);
+			return $.when();
+		});
+	
+		// We should make sure we wait to submit the page source before we close the window for cropping
+		submitDefer = submitDefer.pipe(function(){
+			return uploadPageSource({filename: psFilename, s3_proxy_url: s3_proxy_url});
 		});
 	} 
 	
-	if($('#pagescreenshot').attr('checked'))
+	
+	// User wants a full page screenshot
+	if($('#pagescreenshot').attr('checked') && !crop)
 	{
 		ssFilename = randomUUID() + ".jpeg";
-		fileUrl = getAwsPath(ssFilename);
-		bodyAppend.push("View [screenshot](" + fileUrl + ")");
+		bodyAppend.push("View [screenshot](" + getAwsPath(ssFilename) + ")");
 
-		chrome.tabs.captureVisibleTab(null, null, function(dataUri){
-			$.ajax({
-				url: s3_proxy_url,
+		// User the background.html to capture the window
+		var bg = chrome.extension.getBackgroundPage();
+		bg.screenshot.filename = ssFilename;
+		bg.screenshot.s3_proxy_url = s3_proxy_url;
+		bg.screenshot.captureWindow();
+	}	
+	else if($('#pagescreenshot').attr('checked'))
+	{
+		ssFilename = randomUUID() + ".jpeg";
+		bodyAppend.push("View [screenshot](" + getAwsPath(ssFilename) + ")");
+		
+		// We show the image cropper after we submit the Issue
+	}
+
+	// Append the links and Submit the new issue
+	submitDefer = submitDefer.pipe(function(){
+		console.log("submit time ")
+		options["body"] += "\n\n";
+		options["body"] += bodyAppend.join("\n");
+		return gh.newIssue(options)
+	})
+	
+	// After the issue is submitted, show the complete status or close window and crop
+	if($('#pagescreenshot').attr('checked') && crop)
+	{
+		submitDefer.done(function(){
+			showCropSelector({filename: ssFilename, s3_proxy_url: s3_proxy_url});
+		})
+	}
+	else
+	{
+		submitDefer.done(showStatusSuccess)			
+	}
+}
+
+fetchUrl = function(){
+	var deferred = new jQuery.Deferred();
+	chrome.tabs.getSelected(null,function(tab){
+		console.log("got URL from tab")
+		deferred.resolve(tab.url);
+	});
+	return deferred.promise();
+}
+
+showCropSelector = function(data){
+	setTimeout(function(){
+		var bg = chrome.extension.getBackgroundPage();
+		bg.screenshot.filename = data.filename;
+		bg.screenshot.s3_proxy_url = data.s3_proxy_url;
+		bg.screenshot.githubData = {issueUrl: gh.issueUrl, issueNumber: gh.issueNumber}
+	  bg.screenshot.showSelectionArea();
+		window.close();
+	}, 100)
+}
+
+uploadPageSource = function(data){
+	var deferred = new jQuery.Deferred();
+	chrome.tabs.getSelected(null,function(tab){
+	  chrome.tabs.sendRequest(tab.id, {msg:"get_page_source"}, function(response){
+	    $.ajax({
+				url: data.s3_proxy_url,
 				type: 'post',
 				dataType: 'json',
-				data: {s3_file: {file_contents: dataUri, filename: ssFilename}},
-				success: function(data){console.log("get complete: " + data)},
-		    error: function(){}
+				data: {s3_file: {file_contents: response.source, filename: data.filename}},
+				// Whether or not this is a success, lets resolve the deffered
+				complete: function(data){ deferred.resolve(data) }
 			});
-		});	
-	}
-	
-	chrome.tabs.getSelected(null,function(tab){
-		bodyAppend.push("Page url: " + tab.url);
-			
-		options["body"] += "\n\n" 
-		options["body"] += bodyAppend.join("\n")
-		// We submit the issue before we check that the files have uploaded.
-		gh.newIssue(options)
+		});
 	});
+	return deferred.promise();
 }
 
 function getAwsPath(filename){
@@ -181,13 +237,43 @@ resetForm = function(){
 	$(".assigned-dropdown").val("null")
 }
 
+setCropSubmitButton = function(){
+	
+	if($("#pagescreenshot").attr('checked')) {
+			$('.crop-submit').fadeIn('fast');
+	} else {
+		$('.crop-submit').fadeOut('fast');
+	}
+}
+
+showStatusSuccess = function(){
+	$('.status').html('Issue number <a target="_blank" href="' + gh.issueUrl + '">' + gh.issueNumber + '</a> was created.');
+	$('.status').removeClass('spinner');
+	setTimeout(function(){
+	    $('.status').fadeOut('slow')
+	},5000);
+	resetForm();
+}
+
 $(document).ready(function(){ 
 
+	// Reset background page
+	var bg = chrome.extension.getBackgroundPage();
+	bg.screenshot.data        = null;
+	bg.screenshot.filename    = "";
+	bg.screenshot.githubData  = {}
+	bg.screenshot.captureType = ""
+
+	checkAuthorized();
 	buildRepoDropDown();
 	buidAssignedDropDown();
 	
 	$(".submit").click(function(){
 		submitIssue();
+	})
+	
+	$(".crop-submit").click(function(){
+		submitIssue(true);
 	})
 	
 	$(".repo-dropdown").change(function(){
@@ -198,20 +284,21 @@ $(document).ready(function(){
 		buidAssignedDropDown();
 	})
 	
-	$('.status').ajaxSend(function() {
-		$(this).show();
-	  $(this).html('Submitting issue...');
-		$(this).addClass('spinner');
+	$("#pagescreenshot").change(function(){
+		setCropSubmitButton();
 	});
 	
-	$('.status').ajaxSuccess(function(){
-		$(this).html('Issue number <a target="_blank" href="' + gh.issueUrl + '">' + gh.issueNumber + '</a> was created.');
-		$(this).removeClass('spinner');
-		setTimeout(function(){
-		    $('.status').fadeOut('slow')
-		},5000)
-		resetForm();
-	})
+	if($("#pagescreenshot").attr('checked')) {
+			$('.crop-submit').show();
+	} else {
+		$('.crop-submit').hide();
+	}
+	
+	$('.status').ajaxSend(function() {
+		$(this).show();
+	  $(this).html('Submitting...');
+		$(this).addClass('spinner');
+	});
 	
 	$('.status').ajaxError(function(){
 		$(this).html('There was an error, please try again.');
@@ -222,6 +309,14 @@ $(document).ready(function(){
 		},5000)
 	})
 	
+	$('.refresh').click(function(){
+		$.when(gh.fetchRepos()).done(function(){
+			window.localStorage.setItem("repoMap", JSON.stringify(gh.repos))
+			location.reload(true);
+		}
+		);
+	})
+	
 })  
 
 </script>
@@ -230,6 +325,7 @@ $(document).ready(function(){
 <body>
 <div class="header">
 <img src="assets/github-logo.png" />
+<a class="refresh" href="#">Refresh</a>
 </div>
 
 <div class="tools">	
@@ -247,11 +343,12 @@ $(document).ready(function(){
 	  
 		<textarea class="body" rows="10"></textarea>
 		<input type="checkbox" id="pagesource" name="source" value="true" checked="true" />Include page source<br>
-		<input type="checkbox" id="pagescreenshot" name="screenshot" value="true" checked="true"/>Include screenshot<br>
+		<input type="checkbox" id="pagescreenshot" name="screenshot" value="true"/>Include screenshot<br>
 	</form>
 	</div>
 </div>
-<a href="#" class="submit"><span>Submit</span></a>
+<a href="#" class="submit button" style="margin-left: 15px"><span>Submit</span></a>
+<a href="#" class="crop-submit button"><span>Crop & Submit</span></a>
 
 <span class="status"></span>
 </body>
