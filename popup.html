@@ -324,32 +324,33 @@ $(document).ready(function(){
 
 <body>
 <div class="header">
-<img src="assets/github-logo.png" />
 <a class="refresh" href="#">Refresh</a>
 </div>
 
-<div class="tools">	
-	<h1>Create a new issue</h1>
-	<select class="repo-dropdown"></select>	
-</div>
-
-<div class="comment-wrapper">
-	<div class="comment-inner">
-	<form id="form">
-	  <label>Title</label><br><input type="text" class="title"/><br>
-		<div class="infobar">
-			Assign to: <select class="assigned-dropdown"></select>	
-		</div>
-	  
-		<textarea class="body" rows="10"></textarea>
-		<input type="checkbox" id="pagesource" name="source" value="true" checked="true" />Include page source<br>
-		<input type="checkbox" id="pagescreenshot" name="screenshot" value="true"/>Include screenshot<br>
-	</form>
+<div class="content">
+	<div class="tools">	
+		<h1>Create a new issue</h1>
+		<select class="repo-dropdown"></select>	
 	</div>
-</div>
-<a href="#" class="submit button" style="margin-left: 15px"><span>Submit</span></a>
-<a href="#" class="crop-submit button"><span>Crop & Submit</span></a>
 
-<span class="status"></span>
+	<div class="comment-wrapper">
+		<div class="comment-inner">
+		<form id="form">
+		  <label>Title</label><br><input type="text" class="title"/><br>
+			<div class="infobar">
+				Assign to: <select class="assigned-dropdown"></select>	
+			</div>
+	  
+			<textarea class="body" rows="10"></textarea>
+			<input type="checkbox" id="pagesource" name="source" value="true" checked="true" />Include page source<br>
+			<input type="checkbox" id="pagescreenshot" name="screenshot" value="true"/>Include screenshot<br>
+		</form>
+		</div>
+	</div>
+	<a href="#" class="submit button" style="margin-left: 15px"><span>Submit</span></a>
+	<a href="#" class="crop-submit button"><span>Crop & Submit</span></a>
+
+	<span class="status"></span>
+</div>
 </body>
 </html>

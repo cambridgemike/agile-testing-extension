@@ -8,13 +8,14 @@ body {
   overflow-x:hidden;
 	font: 13.34px/1.4 helvetica,arial,freesans,clean,sans-serif;
 	color: black;
-	padding: 5px 20px 20px 20px;
-	background: url('assets/background-v2.png') repeat-x top left white;
 }
 
 .header {
+  background: url('assets/background-v2.png') repeat-x bottom left white;
   width: 100%;
+  height: 30px;
   position: relative;
+  padding-right: 20px;
 }
 
 .header img {
@@ -29,10 +30,15 @@ body {
   bottom: 5px;
   color: #999;
   text-decoration: none;
+  margin-right: 20px;
 }
 
 .header .refresh:hover {
   color: #666;
+}
+
+.content {
+  padding: 5px 20px 20px 20px;
 }
 
 .tools h1 {
