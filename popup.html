@@ -195,6 +195,9 @@ fetchUrl = function(){
 		console.log("got URL from tab")
 		deferred.resolve(tab.url);
 	});
+	setTimeout(functio(){
+	  deferred.resolve("");
+	}, 200); // Timeout after 200 milliseconds
 	return deferred.promise();
 }
 
@@ -210,19 +213,27 @@ showCropSelector = function(data){
 }
 
 uploadPageSource = function(data){
+  console.log("getting page source")
 	var deferred = new jQuery.Deferred();
 	chrome.tabs.getSelected(null,function(tab){
+	  console.log("sending page source request to tab.")
+    
 	  chrome.tabs.sendRequest(tab.id, {msg:"get_page_source"}, function(response){
+	    console.log("got response from tab")
 	    $.ajax({
 				url: data.s3_proxy_url,
 				type: 'post',
 				dataType: 'json',
 				data: {s3_file: {file_contents: response.source, filename: data.filename}},
 				// Whether or not this is a success, lets resolve the deffered
-				complete: function(data){ deferred.resolve(data) }
+				complete: function(data){ console.log("ajax completed from page.js"); deferred.resolve(data) }
 			});
 		});
 	});
+	
+	setTimeout(function(){
+	  deferred.resolve(false);
+	}, 1000); // Only wait 1 second
 	return deferred.promise();
 }
 

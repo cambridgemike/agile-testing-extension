@@ -19,7 +19,7 @@
     },
     {
       "matches": ["http://*/*", "https://*/*", "ftp://*/*", "file://*/*"],
-      "js": ["page.js"],
+      "js": ["gh-page.js"],
       "css": ["style.css"],
       "run_at": "document_end"
     }
