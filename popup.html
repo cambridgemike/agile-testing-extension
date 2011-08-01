@@ -195,7 +195,7 @@ fetchUrl = function(){
 		console.log("got URL from tab")
 		deferred.resolve(tab.url);
 	});
-	setTimeout(functio(){
+	setTimeout(function(){
 	  deferred.resolve("");
 	}, 200); // Timeout after 200 milliseconds
 	return deferred.promise();
