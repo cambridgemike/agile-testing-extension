@@ -5,7 +5,8 @@
 -->
 <html>
 <head>
-	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+	<script type="text/javascript" src="jquery.min.js"></script>
+	<script type="text/javascript" src="oauth2/oauth2.js"></script>
 </head>
 <body>
 <script>
@@ -44,6 +45,9 @@ var screenshot = {
   */
   addMessageListener: function() {
     chrome.extension.onRequest.addListener(function(request, sender, response) {
+      console.log(sender.tab ?
+                  "from a content script:" + sender.tab.url :
+                  "from the extension");
       var obj = request;
       switch(obj.msg) {
         case 'capture_selected':
@@ -58,6 +62,9 @@ var screenshot = {
         case 'capture_webpage':
             screenshot.captureWebpage();
           break;	
+        case 'check_authorized':
+            screenshot.checkAuthorized(response);
+          break;
       }
     });
   },
@@ -336,6 +343,23 @@ var screenshot = {
       }
     });
   },
+  
+  checkAuthorized: function(sendResponse) {
+    console.log('checkAuthorized');
+    var github = new OAuth2('github', {
+      client_id: '2211e38039c1de31d857',
+      client_secret: 'fe54617de4a64adea4f2cf0294f3cd06aa92876d',
+    });
+
+    if (token = github.getAccessToken()) {
+      sendResponse({authorized: token});
+    } else {
+  		// Not authorized
+  		console.log("not authorized");
+  		chrome.tabs.create( {url: chrome.extension.getURL("options.html")} );
+  		sendResponse({authorized: false});
+    }
+  },
 
   init: function() {
 
@@ -345,6 +369,8 @@ var screenshot = {
 
   }
 };
+
+
 
 screenshot.init();
 </script>

@@ -5,10 +5,10 @@
 
 <link href="styles.css" media="screen" rel="stylesheet" type="text/css" />
 
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
-<script src="oauth2/oauth2.js"></script>
-<script src="githubapi.js"></script>
-<script src="scripts/utilities.js"></script>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="oauth2/oauth2.js"></script>
+<script type="text/javascript" src="githubapi.js"></script>
+<script type="text/javascript" src="scripts/utilities.js"></script>
 
 <script>
 
@@ -20,20 +20,11 @@ jQuery.ajaxSetup({
   }
 })
 
-var github = new OAuth2('github', {
-  client_id: '2211e38039c1de31d857',
-  client_secret: 'fe54617de4a64adea4f2cf0294f3cd06aa92876d',
-});
-
-gh = new GitHub(github.getAccessToken());
-
-checkAuthorized = function() {
-  console.log('checkAuthorized');
-  var provider = window["github"];
-  if (provider.get('accessToken')) {
-
-  } else {
-		// Not authorized
+// Handler for response from checkAuthorized running in background.html        
+checkAuthorizedHandler = function(response){
+  if(!response.authorized)
+  {
+    // Reset the file upload field
 		console.log("not authorized");
 		$('.status').show();
 		$('.status').html('Please grant Github permissions');
@@ -41,11 +32,10 @@ checkAuthorized = function() {
 		setTimeout(function(){
 		    $('.status').fadeOut('slow', function(){ $('.status').removeClass('error')});
 		},5000)
-		chrome.tabs.create( {url: chrome.extension.getURL("options.html")} );
-		
-  }
+  } 
+  else
+    gh = new GitHub(response.authorized); // This will return the access key
 }
-
 
 buildRepoDropDown = function(){
 	dropdown = $(".repo-dropdown");
@@ -275,7 +265,7 @@ $(document).ready(function(){
 	bg.screenshot.githubData  = {}
 	bg.screenshot.captureType = ""
 
-	checkAuthorized();
+  chrome.extension.sendRequest({msg: 'check_authorized'}, checkAuthorizedHandler)
 	buildRepoDropDown();
 	buidAssignedDropDown();
 	

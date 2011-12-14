@@ -8,6 +8,7 @@ body {
   overflow-x:hidden;
 	font: 13.34px/1.4 helvetica,arial,freesans,clean,sans-serif;
 	color: black;
+	outline: none;
 }
 
 .header {

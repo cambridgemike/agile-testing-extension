@@ -27,21 +27,21 @@ GitHub.prototype.fetchRepos = function(onComplete){
  orgRepos = self.get(self.endpoint + '/user/orgs').pipe(function(orgList){
    
    // For each organization, get it's list of repos
-   subRepoQuery = $.map(orgList, function(org){
+   subRepoQuery = jQuery.map(orgList, function(org){
      return self.get(org.url + '/repos').pipe( function(data) {return self.repoPluck(data)} );
    });
    
-   return $.when.apply($, subRepoQuery)
+   return jQuery.when.apply(jQuery, subRepoQuery)
  });
  
  // Return all of our ajax objects
- $.when.apply($, [userRepos, orgRepos]).then(function(){console.log("Everything has finished")})
- return $.when.apply($, [userRepos, orgRepos])
+ jQuery.when.apply(jQuery, [userRepos, orgRepos]).then(function(){console.log("Everything has finished")})
+ return jQuery.when.apply(jQuery, [userRepos, orgRepos])
 };
 
 GitHub.prototype.repoPluck = function(repoList){
   var self = this
-  arr = $.map(repoList, function(repo){
+  arr = jQuery.map(repoList, function(repo){
     // Unfortunately we have to make a request to the repo to see if it has issues
     req = self.get(repo.url).pipe(function(repoData){
       if(repoData.has_issues)
@@ -64,7 +64,7 @@ GitHub.prototype.repoPluck = function(repoList){
   });
   
   // Return an aggregate Deferred object
-  return $.when.apply($, arr)
+  return jQuery.when.apply(jQuery, arr)
 };
 
 GitHub.prototype.newIssue = function(data){
@@ -112,11 +112,15 @@ GitHub.prototype.commitFiles = function(data){
   
 }
 
+GitHub.prototype.createDownload = function(repoUrl, filename, filesize){
+  var self = this;
+  return self.post(self.endpoint + "/repos/" + repoUrl + "/downloads", {name: filename, size: filesize})
+}
 
 // Ajax methods
 
 GitHub.prototype.get = function(url){
-  return $.ajax({
+  return jQuery.ajax({
     url: url + "?access_token=" + this.access_token,
 		type: 'get',
 		dataType: 'json',
@@ -126,7 +130,7 @@ GitHub.prototype.get = function(url){
 };
 
 GitHub.prototype.post = function(url, data){
-  return $.ajax({
+  return jQuery.ajax({
     url: url + "?access_token=" + this.access_token,
 		type: 'post',
 		data: JSON.stringify(data),

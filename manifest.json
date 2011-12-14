@@ -1,10 +1,10 @@
 {
-  "name": "Github Issue Submitter",
+  "name": "Github Extras",
 	"icons": { "16": "assets/icon.png",
 	           "48": "assets/icon48.png",
 	          "128": "assets/icon128.png" },
-  "version": "1.1",
-  "description": "Submit issues to Github. Include HTML source and screenshots from the current tab.",
+  "version": "1.5",
+  "description": "Submit issues to Github. Include HTML source and screenshots from the current tab. Include attachments.",
   "options_page": "options.html",
   "background_page": "background.html",
   "browser_action": {
@@ -16,6 +16,16 @@
       "matches": ["https://github.com/robots.txt*"],
       "js": ["oauth2/oauth2_inject.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["https://github.com/*issues*"],
+      "js": ["jquery.min.js", "githubapi.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://github.com/*issues*"],
+      "js": ["issue_context.js"],
+      "run_at": "document_end"
     },
     {
       "matches": ["http://*/*", "https://*/*", "ftp://*/*", "file://*/*"],
