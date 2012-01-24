@@ -51,7 +51,11 @@ GitHub.prototype.repoPluck = function(repoList){
         
         return self.get(repo.url + '/contributors').done(function(contribList){
           self.repos[repo.owner.login + '/' + repo.name]["contributors"] = contribList;
-        })
+        }).then(
+          self.get(repo.url + '/milestones').done(function(milestoneList){
+            self.repos[repo.owner.login + '/' + repo.name]["milestones"] = milestoneList;
+          })
+        )
         
       } else {
         // Return null so that pipe doesn't wait on us

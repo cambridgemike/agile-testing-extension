@@ -125,6 +125,10 @@ body {
   background: whiteSmoke;
 }
 
+.comment-wrapper .infobar p:first-child {
+  padding-bottom: 10px;
+}
+
 .comment-inner {
   -webkit-border-radius: 2px 2px 2px 2px;
   background: none repeat scroll 0 0 #FFFFFF;

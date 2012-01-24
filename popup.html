@@ -60,7 +60,7 @@ buildRepoDropDown = function(){
 	}
 }
 
-buidAssignedDropDown = function(){
+buildAssignedDropDown = function(){
 	repoKey = $('.repo-dropdown option:selected').html()
 	
 	dropdown = $(".assigned-dropdown");
@@ -88,6 +88,34 @@ buidAssignedDropDown = function(){
 	})
 }
 
+buildMilestoneDropDown = function(){
+	repoKey = $('.repo-dropdown option:selected').html()
+	
+	dropdown = $(".milestone-dropdown");
+	
+	// Reset the dropdown
+	dropdown.html('')
+	var blank = $("<option>")
+	blank.val("null")
+	blank.html("Select")
+	dropdown.append(blank)	
+	
+	repoMap = JSON.parse(localStorage["repoMap"]);
+	
+	milestoneList = repoMap[repoKey]["milestones"]
+	
+	// Build the dropdown
+	$.map(milestoneList, function(milestone){
+		name = milestone.title
+		
+	 	var opt = $("<option>")
+		opt.val(milestone.number)
+		opt.html(name)
+			
+		dropdown.append(opt)
+	})
+}
+
 //dataUrl = canvas.toDataURL('image/png');
 
 
@@ -101,6 +129,7 @@ submitIssue = function(crop){
 	title = $(".title").val()
   body = $(".body").val()
 	assigned = $(".assigned-dropdown").val()
+	milestone = $(".milestone-dropdown").val()
 	repoUrl = $(".repo-dropdown").val()
 	
 	options["repo"] = repoUrl;
@@ -110,6 +139,8 @@ submitIssue = function(crop){
 	if(assigned != "null")
 		options["assignee"] = assigned;
 	
+	if(milestone != "null")
+	  options["milestone"] = milestone;
 
 	bodyAppend = []
 	ssFilename = ""
@@ -236,6 +267,7 @@ resetForm = function(){
 	$(".title").val("")
 	$(".body").val("")
 	$(".assigned-dropdown").val("null")
+	$(".milestone-dropdown").val("null")
 }
 
 setCropSubmitButton = function(){
@@ -267,7 +299,8 @@ $(document).ready(function(){
 
   chrome.extension.sendRequest({msg: 'check_authorized'}, checkAuthorizedHandler)
 	buildRepoDropDown();
-	buidAssignedDropDown();
+	buildAssignedDropDown();
+	buildMilestoneDropDown();
 	
 	$(".submit").click(function(){
 		submitIssue();
@@ -282,7 +315,8 @@ $(document).ready(function(){
 		localStorage["defaultRepo"] = selectedRepo;
 		
 		// Rebuild the assignee list
-		buidAssignedDropDown();
+		buildAssignedDropDown();
+  	buildMilestoneDropDown();
 	})
 	
 	$("#pagescreenshot").change(function(){
@@ -339,7 +373,8 @@ $(document).ready(function(){
 		<form id="form">
 		  <label>Title</label><br><input type="text" class="title"/><br>
 			<div class="infobar">
-				Assign to: <select class="assigned-dropdown"></select>	
+				<p>Assign to: <select class="assigned-dropdown"></select></p>
+				<p>Milestone: <select class="milestone-dropdown"></select></p>
 			</div>
 	  
 			<textarea class="body" rows="10"></textarea>
