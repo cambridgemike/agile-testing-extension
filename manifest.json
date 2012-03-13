@@ -1,40 +1,24 @@
 {
-  "name": "Github Extras",
-	"icons": { "16": "assets/icon.png",
+  "name": "ChromePhoneExtension",
+	"icons": { "16": "assets/path3038.png",
 	           "48": "assets/icon48.png",
 	          "128": "assets/icon128.png" },
-  "version": "2",
-  "description": "Submit issues to Github. Include HTML source and screenshots from the current tab. Include attachments.",
-  "options_page": "options.html",
+  "version": "0.5",
+  "description": "Send phone numbers and maps to your phone",
   "background_page": "background.html",
+  "options_page": "options.html",
   "browser_action": {
-    "default_icon": "assets/icon.png",
+    "default_icon": "assets/path3038.png",
     "popup": "popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://github.com/robots.txt*"],
-      "js": ["oauth2/oauth2_inject.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": ["https://github.com/*issues*"],
-      "js": ["jquery.min.js", "githubapi.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": ["https://github.com/*issues*"],
-      "js": ["issue_context.js"],
-      "run_at": "document_end"
-    },
-    {
       "matches": ["http://*/*", "https://*/*", "ftp://*/*", "file://*/*"],
-      "js": ["gh-page.js"],
-      "css": ["style.css"],
+      "js": ["page.js"],
       "run_at": "document_end"
     }
   ],
   "permissions": [
-    "tabs", "notifications", "http://*/*",  "https://*/*", "https://github.com/", "https://api.github.com/"
+    "tabs", "notifications", "http://*/*",  "https://*/*"
   ]
 }

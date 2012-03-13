@@ -6,387 +6,192 @@
 <link href="styles.css" media="screen" rel="stylesheet" type="text/css" />
 
 <script type="text/javascript" src="jquery.min.js"></script>
-<script type="text/javascript" src="oauth2/oauth2.js"></script>
-<script type="text/javascript" src="githubapi.js"></script>
 <script type="text/javascript" src="scripts/utilities.js"></script>
+<script type="text/javascript" src="scripts/urban_airship.js"></script>
+<script type="text/javascript" src="scripts/cloudant.js"></script>
 
 <script>
 
-jQuery.ajaxSetup({ 
-  'beforeSend': function(xhr) {
-    xhr.setRequestHeader("Accept", "application/json")  
-		console.log("Outgoing ajax request");
-		console.log(xhr);
+// If we don't have a device token set then redirect to options page
+if(!localStorage.deviceToken){
+  chrome.tabs.create( {url: chrome.extension.getURL("options.html")});
+} else{
+  airship = new UrbanAirship({deviceToken: localStorage.deviceToken});
+}
+
+// Cloudant schema
+// {
+//   alert: 'alert text',
+//   httpUrl: 'http URL of page',
+//   appUrl: 'app URL for the object'
+// }
+
+
+PushNotification = function(construct){
+  this.data = {}
+  this.data.alert      = construct.alert
+  this.data.httpUrl    = construct.httpUrl
+  this.data.appUrl     = construct.appUrl
+  this.data.faviconUrl = construct.faviconUrl
+}
+
+PushNotification.prototype.submit = function(){
+  var self = this;
+  Cloudant.create(self.data, function(response){
+    // Finish setting up the payload here
+    airship.payload.aps.alert = self.data.alert
+    airship.payload.aps.key   = response.id
+    airship.sendNotification();
+  })
+}
+
+
+var Yelp = {
+  test:     function(url){ return /yelp.com.biz/.test(url) },
+  convert: function(url, pn){ pn.data.appUrl = "yelp://"+ url.split(".com")[1] }
+}
+
+var Gmaps = {
+  test: function(url){ return /maps.google/.test(url) },
+  convert: function(url, pn){ pn.data.appUrl = url; }
+}
+
+var Rdio = {
+  test: function(url){ return /rdio.com/.test(url) },
+  convert: function(url, pn){ 
+    $.getJSON("http://www.rdio.com/api/oembed/?url=" + escape(url), function(data){
+      url_string = $(data.html).attr('src')
+      url_string = url_string.replace(/^http/, "rdio")
+      url_string = url_string.replace(/\/?\?.*/,"") // Get rid of the search string
+      url_string = url_string.replace(/\/\w\//, "/x/") // for whatever weird reason this must be an "x"
+      pn.data.appUrl = url_string
+    })
   }
+}
+
+var Instagram = {
+  test: function(url){ return /instagr.am/.test(url) },
+  convert: function(url, pn){ 
+    $.getJSON("http://api.instagram.com/oembed?url=" + escape(url), function(data) {
+        pn.data.appUrl = "instagram://media?id=" + data.media_id
+      })
+  }
+}
+
+var linkouts = [Yelp, Gmaps, Instagram, Rdio]
+
+
+chrome.tabs.getSelected(null, function(tab) {
+  selected = tab;
+  
+  chrome.tabs.sendRequest(tab.id, {action:'start', tabId: tab.id}, function(response) {  
+      // TODO: support Rdio (done), Yelp (done), Instagram (done), Path, Pinterest, Google maps (done), Youtube (done), Ebay
+      
+      title   = response.title || selected.title;
+      url     = response.url   || selected.url;
+      tabHTML = response.html;
+      favicon = selected.favIconUrl;
+      appUrl  = ""
+            
+      pn = new PushNotification({alert: title, httpUrl: url, appUrl: appUrl, faviconUrl: favicon})
+                  
+      for(key in linkouts)
+      {
+        // Get the linkout
+        linkout = linkouts[key]
+        if(linkout.test(url)) {
+          // set the appURL on the push notification
+          linkout.convert(url, pn);
+        }
+      }
+      
+      // Add any other converters here... 
+
+      item = $("<li><img src='" + favicon + "'/><a rel='phonepush' href='#'>" + title + "</a></li>")
+      item.find("a").data("pn", pn)
+      $("#entries").append(item)
+      
+      // PHONE NUMBERS
+      phone_numbers = response.phones
+      if(phone_numbers != null){
+        for(key in phone_numbers)
+        {
+          phone_number = phone_numbers[key]
+          phone_url = "tel:" + phone_number.replace(/[\(\) ]/g, "")
+          pn = new PushNotification({alert: phone_number, httpUrl: "", appUrl: phone_url, faviconUrl: "..."})
+          
+          item = $("<li><img src='assets/HiResPhone.png'/><a rel='phonepush' href='#'>" + phone_number + "</a></li>")
+          item.find("a").data("pn", pn);
+          $("#entries").append(item)
+        }
+      }
+            
+      if(response.appstoreUrl != null){
+        // TODO: grab the name of this app from the URL
+        
+        pn = new PushNotification({alert: "App download", httpUrl: "", appUrl: response.appstoreUrl, faviconUrl: "..."});
+        
+        item = $("<li><img src='assets/iosicon.png'/><a rel='phonepush' href='#'>Download app</a></li>")
+        item.find("a").data("pn", pn);
+        $("#entries").append(item)
+      }
+      
+      // Look for any maps on the page
+      
+      // Todo...
+  });
+});
+
+$("[rel='phonepush']").live('click', function(e){
+  pn = $(this).data("pn")
+  e.stopPropagation();
+  pn.submit();
 })
 
-// Handler for response from checkAuthorized running in background.html        
-checkAuthorizedHandler = function(response){
-  if(!response.authorized)
-  {
-    // Reset the file upload field
-		console.log("not authorized");
-		$('.status').show();
-		$('.status').html('Please grant Github permissions');
-		$('.status').addClass('error');
-		setTimeout(function(){
-		    $('.status').fadeOut('slow', function(){ $('.status').removeClass('error')});
-		},5000)
-  } 
-  else
-    gh = new GitHub(response.authorized); // This will return the access key
-}
-
-buildRepoDropDown = function(){
-	dropdown = $(".repo-dropdown");
-	repoMap = JSON.parse(localStorage["repoMap"]);
-	
-	// Build the 
-	for (var key in repoMap) {
-	  if (repoMap.hasOwnProperty(key)) {
-			repo_name = key
-			repo_url = repoMap[key]["url"]
-			
-		 	var opt = $("<option>")
-			opt.val(repo_url)
-			opt.html(repo_name)
-			
-			// TODO: set as selected if it was used last
-			if(localStorage["defaultRepo"] == repo_url)
-				opt.attr("selected", "true")
-				
-			dropdown.append(opt)
-	  }
-	}
-}
-
-buildAssignedDropDown = function(){
-	repoKey = $('.repo-dropdown option:selected').html()
-	
-	dropdown = $(".assigned-dropdown");
-	
-	// Reset the dropdown
-	dropdown.html('')
-	var blank = $("<option>")
-	blank.val("null")
-	blank.html("Nobody assigned")
-	dropdown.append(blank)	
-	
-	repoMap = JSON.parse(localStorage["repoMap"]);
-	
-	contributorList = repoMap[repoKey]["contributors"]
-	
-	// Build the dropdown
-	$.map(contributorList, function(contributor){
-		name = contributor.login
-		
-	 	var opt = $("<option>")
-		opt.val(name)
-		opt.html(name)
-			
-		dropdown.append(opt)
-	})
-}
-
-buildMilestoneDropDown = function(){
-	repoKey = $('.repo-dropdown option:selected').html()
-	
-	dropdown = $(".milestone-dropdown");
-	
-	// Reset the dropdown
-	dropdown.html('')
-	var blank = $("<option>")
-	blank.val("null")
-	blank.html("Select")
-	dropdown.append(blank)	
-	
-	repoMap = JSON.parse(localStorage["repoMap"]);
-	
-	milestoneList = repoMap[repoKey]["milestones"]
-	
-	// Build the dropdown
-	$.map(milestoneList, function(milestone){
-		name = milestone.title
-		
-	 	var opt = $("<option>")
-		opt.val(milestone.number)
-		opt.html(name)
-			
-		dropdown.append(opt)
-	})
-}
-
-//dataUrl = canvas.toDataURL('image/png');
-
-
-submitIssue = function(crop){
-	
-	s3_proxy_url = "http://afternoon-earth-714.heroku.com/s3_files"
-	
-	options = {}
-	crop = crop || false
-	
-	title = $(".title").val()
-  body = $(".body").val()
-	assigned = $(".assigned-dropdown").val()
-	milestone = $(".milestone-dropdown").val()
-	repoUrl = $(".repo-dropdown").val()
-	
-	options["repo"] = repoUrl;
-	options["title"] = title;
-	options["body"] = body;
-	
-	if(assigned != "null")
-		options["assignee"] = assigned;
-	
-	if(milestone != "null")
-	  options["milestone"] = milestone;
-
-	bodyAppend = []
-	ssFilename = ""
-	psFilename = ""
-	
-	
-	// Empty defer object
-	submitDefer = $.when();
-	
-	
-	if($('#pagesource').attr('checked'))
-	{
-		psFilename = randomUUID() + ".html";
-	  bodyAppend.push("View [page source](" + getAwsPath(psFilename) + ")");
-	
-		// Get the current URL
-		submitDefer = submitDefer.pipe(fetchUrl).pipe(function(url){
-			bodyAppend.push("Url: " + url);
-			return $.when();
-		});
-	
-		// We should make sure we wait to submit the page source before we close the window for cropping
-		submitDefer = submitDefer.pipe(function(){
-			return uploadPageSource({filename: psFilename, s3_proxy_url: s3_proxy_url});
-		});
-	} 
-	
-	
-	// User wants a full page screenshot
-	if($('#pagescreenshot').attr('checked') && !crop)
-	{
-		ssFilename = randomUUID() + ".jpeg";
-		bodyAppend.push("View [screenshot](" + getAwsPath(ssFilename) + ")");
-
-		// User the background.html to capture the window
-		var bg = chrome.extension.getBackgroundPage();
-		bg.screenshot.filename = ssFilename;
-		bg.screenshot.s3_proxy_url = s3_proxy_url;
-		bg.screenshot.captureWindow();
-	}	
-	else if($('#pagescreenshot').attr('checked'))
-	{
-		ssFilename = randomUUID() + ".jpeg";
-		bodyAppend.push("View [screenshot](" + getAwsPath(ssFilename) + ")");
-		
-		// We show the image cropper after we submit the Issue
-	}
-
-	// Append the links and Submit the new issue
-	submitDefer = submitDefer.pipe(function(){
-		console.log("submit time ")
-		options["body"] += "\n\n";
-		options["body"] += bodyAppend.join("\n");
-		return gh.newIssue(options)
-	})
-	
-	// After the issue is submitted, show the complete status or close window and crop
-	if($('#pagescreenshot').attr('checked') && crop)
-	{
-		submitDefer.done(function(){
-			showCropSelector({filename: ssFilename, s3_proxy_url: s3_proxy_url});
-		})
-	}
-	else
-	{
-		submitDefer.done(showStatusSuccess)			
-	}
-}
-
-fetchUrl = function(){
-	var deferred = new jQuery.Deferred();
-	chrome.tabs.getSelected(null,function(tab){
-		console.log("got URL from tab")
-		deferred.resolve(tab.url);
-	});
-	setTimeout(function(){
-	  deferred.resolve("");
-	}, 200); // Timeout after 200 milliseconds
-	return deferred.promise();
-}
-
-showCropSelector = function(data){
-	setTimeout(function(){
-		var bg = chrome.extension.getBackgroundPage();
-		bg.screenshot.filename = data.filename;
-		bg.screenshot.s3_proxy_url = data.s3_proxy_url;
-		bg.screenshot.githubData = {issueUrl: gh.issueUrl, issueNumber: gh.issueNumber}
-	  bg.screenshot.showSelectionArea();
-		window.close();
-	}, 100)
-}
-
-uploadPageSource = function(data){
-  console.log("getting page source")
-	var deferred = new jQuery.Deferred();
-	chrome.tabs.getSelected(null,function(tab){
-	  console.log("sending page source request to tab.")
-    
-	  chrome.tabs.sendRequest(tab.id, {msg:"get_page_source"}, function(response){
-	    console.log("got response from tab")
-	    $.ajax({
-				url: data.s3_proxy_url,
-				type: 'post',
-				dataType: 'json',
-				data: {s3_file: {file_contents: response.source, filename: data.filename}},
-				// Whether or not this is a success, lets resolve the deffered
-				complete: function(data){ console.log("ajax completed from page.js"); deferred.resolve(data) }
-			});
-		});
-	});
-	
-	setTimeout(function(){
-	  deferred.resolve(false);
-	}, 1000); // Only wait 1 second
-	return deferred.promise();
-}
-
-function getAwsPath(filename){
-	path = "http://gis-e6xaz.s3.amazonaws.com/" + filename;
-	return path;
-}
-
-resetForm = function(){
-	$(".title").val("")
-	$(".body").val("")
-	$(".assigned-dropdown").val("null")
-	$(".milestone-dropdown").val("null")
-}
-
-setCropSubmitButton = function(){
-	
-	if($("#pagescreenshot").attr('checked')) {
-			$('.crop-submit').fadeIn('fast');
-	} else {
-		$('.crop-submit').fadeOut('fast');
-	}
-}
-
-showStatusSuccess = function(){
-	$('.status').html('Issue number <a target="_blank" href="' + gh.issueUrl + '">' + gh.issueNumber + '</a> was created.');
-	$('.status').removeClass('spinner');
-	setTimeout(function(){
-	    $('.status').fadeOut('slow')
-	},5000);
-	resetForm();
-}
-
-$(document).ready(function(){ 
-
-	// Reset background page
-	var bg = chrome.extension.getBackgroundPage();
-	bg.screenshot.data        = null;
-	bg.screenshot.filename    = "";
-	bg.screenshot.githubData  = {}
-	bg.screenshot.captureType = ""
-
-  chrome.extension.sendRequest({msg: 'check_authorized'}, checkAuthorizedHandler)
-	buildRepoDropDown();
-	buildAssignedDropDown();
-	buildMilestoneDropDown();
-	
-	$(".submit").click(function(){
-		submitIssue();
-	})
-	
-	$(".crop-submit").click(function(){
-		submitIssue(true);
-	})
-	
-	$(".repo-dropdown").change(function(){
-		selectedRepo = $(this).val();
-		localStorage["defaultRepo"] = selectedRepo;
-		
-		// Rebuild the assignee list
-		buildAssignedDropDown();
-  	buildMilestoneDropDown();
-	})
-	
-	$("#pagescreenshot").change(function(){
-		setCropSubmitButton();
-	});
-	
-	if($("#pagescreenshot").attr('checked')) {
-			$('.crop-submit').show();
-	} else {
-		$('.crop-submit').hide();
-	}
-	
-	$('.status').ajaxSend(function() {
-		$(this).show();
-	  $(this).html('Submitting...');
-		$(this).addClass('spinner');
-	});
-	
-	$('.status').ajaxError(function(){
-		$(this).html('There was an error, please try again.');
-		$(this).removeClass('spinner');
-		$(this).addClass('error')
-		setTimeout(function(){
-		    $('.status').fadeOut('slow')
-		},5000)
-	})
-	
-	$('.refresh').click(function(){
-		$.when(gh.fetchRepos()).done(function(){
-			window.localStorage.setItem("repoMap", JSON.stringify(gh.repos))
-			location.reload(true);
-		}
-		);
-	})
-	
-})  
-
 </script>
+
+<style>
+ li img {
+   width: 16px;
+   height: 16px;
+   float: left;
+   margin-right: 5px;
+ }
+ 
+ li a {
+   float: left;
+   text-decoration: none;
+   width: 90%;
+ }
+ 
+ li a:hover{
+   text-decoration: underline;
+ }
+ 
+ li {
+   list-style-type:none;
+   clear: right;
+   overflow: auto;
+   padding-bottom: 0.75em;
+ }
+</style>
+
 </head>
 
 <body>
 <div class="header">
-<a class="refresh" href="#">Refresh</a>
+  <h1>Push Mobile</h1>
 </div>
 
 <div class="content">
 	<div class="tools">	
-		<h1>Create a new issue</h1>
-		<select class="repo-dropdown"></select>	
+		  <ul id="entries">
+		  </ul>
 	</div>
 
-	<div class="comment-wrapper">
-		<div class="comment-inner">
-		<form id="form">
-		  <label>Title</label><br><input type="text" class="title"/><br>
-			<div class="infobar">
-				<p>Assign to: <select class="assigned-dropdown"></select></p>
-				<p>Milestone: <select class="milestone-dropdown"></select></p>
-			</div>
-	  
-			<textarea class="body" rows="10"></textarea>
-			<input type="checkbox" id="pagesource" name="source" value="true" checked="true" />Include page source<br>
-			<input type="checkbox" id="pagescreenshot" name="screenshot" value="true"/>Include screenshot<br>
-		</form>
-		</div>
-	</div>
-	<a href="#" class="submit button" style="margin-left: 15px"><span>Submit</span></a>
-	<a href="#" class="crop-submit button"><span>Crop & Submit</span></a>
-
-	<span class="status"></span>
+</div>
+<div class="footer">
+  <span id="errorMsg" class="status error" style="display:none">Error, please refresh and try again</span>
 </div>
 </body>
 </html>
